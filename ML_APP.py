@@ -90,72 +90,78 @@ with tab2:
 # ==========================
 # 🔮 Prediction Tab (Clean White Background)
 # ==========================
+
+
+
 with tab3:
-    # Override background
     st.markdown("""
     <style>
-    .white-background {
+    .predict-tab {
         background-color: rgba(255, 255, 255, 0.97);
         padding: 30px;
         border-radius: 15px;
         box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.25);
-        margin-bottom: 20px;
+        margin-top: 20px;
     }
     </style>
-    <div class="white-background">
     """, unsafe_allow_html=True)
 
-    st.header("🔧 Vehicle Input Features")
+    # Create a container and inject styled div using st.markdown
+    with st.container():
+        st.markdown('<div class="predict-tab">', unsafe_allow_html=True)
 
-    def get_user_input():
-        user_data = {}
-        make = st.selectbox("Make", df["make"].unique())
-        models = df[df["make"] == make]["model"].unique()
-        model_name = st.selectbox("Model", models)
-        series = df[(df["make"] == make) & (df["model"] == model_name)]["series"].unique()
-        series_val = st.selectbox("Series", series)
+        st.header("🔧 Vehicle Input Features")
 
-        user_data["make"] = make
-        user_data["model"] = model_name
-        user_data["series"] = series_val
+        def get_user_input():
+            user_data = {}
+            make = st.selectbox("Make", df["make"].unique())
+            models = df[df["make"] == make]["model"].unique()
+            model_name = st.selectbox("Model", models)
+            series = df[(df["make"] == make) & (df["model"] == model_name)]["series"].unique()
+            series_val = st.selectbox("Series", series)
 
+            user_data["make"] = make
+            user_data["model"] = model_name
+            user_data["series"] = series_val
+
+            for col in feature_columns:
+                if col in ["make", "model", "series"]:
+                    continue
+                if df[col].dtype == 'object':
+                    user_data[col] = st.selectbox(col, df[col].unique())
+                else:
+                    min_val, max_val = int(df[col].min()), int(df[col].max())
+                    mean_val = int(df[col].mean())
+                    user_data[col] = st.slider(col, min_val, max_val, mean_val)
+
+            return pd.DataFrame([user_data])
+
+        user_input_df = get_user_input()
+
+        # Encode input
+        encoded_input = user_input_df.copy()
+        for col in label_encoders:
+            if col in encoded_input.columns:
+                encoded_input[col] = label_encoders[col].transform(encoded_input[col])
         for col in feature_columns:
-            if col in ["make", "model", "series"]:
-                continue
-            if df[col].dtype == 'object':
-                user_data[col] = st.selectbox(col, df[col].unique())
-            else:
-                min_val, max_val = int(df[col].min()), int(df[col].max())
-                mean_val = int(df[col].mean())
-                user_data[col] = st.slider(col, min_val, max_val, mean_val)
+            if col not in encoded_input.columns:
+                encoded_input[col] = 0
+        X_user = encoded_input[feature_columns]
 
-        return pd.DataFrame([user_data])
+        # Predict
+        pred = model.predict(X_user)[0]
+        pred_proba = model.predict_proba(X_user)[0]
+        label = "Automatic" if pred == 1 else "Manual"
 
-    user_input_df = get_user_input()
+        # Output
+        st.subheader("🔍 Summary of Your Input")
+        st.write(user_input_df)
 
-    # Encode input
-    encoded_input = user_input_df.copy()
-    for col in label_encoders:
-        if col in encoded_input.columns:
-            encoded_input[col] = label_encoders[col].transform(encoded_input[col])
-    for col in feature_columns:
-        if col not in encoded_input.columns:
-            encoded_input[col] = 0
-    X_user = encoded_input[feature_columns]
+        st.subheader("📌 Prediction")
+        st.success(f"**Predicted Transmission Type:** {label}")
 
-    # Predict
-    pred = model.predict(X_user)[0]
-    pred_proba = model.predict_proba(X_user)[0]
-    label = "Automatic" if pred == 1 else "Manual"
+        st.subheader("📈 Prediction Probability")
+        st.dataframe(pd.DataFrame([pred_proba], columns=["Manual", "Automatic"]))
 
-    # Output
-    st.subheader("🔍 Summary of Your Input")
-    st.write(user_input_df)
-
-    st.subheader("📌 Prediction")
-    st.success(f"**Predicted Transmission Type:** {label}")
-
-    st.subheader("📈 Prediction Probability")
-    st.dataframe(pd.DataFrame([pred_proba], columns=["Manual", "Automatic"]))
-
-    st.markdown("</div>", unsafe_allow_html=True)
+        # Close div manually
+        st.markdown("</div>", unsafe_allow_html=True)
