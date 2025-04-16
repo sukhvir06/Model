@@ -96,7 +96,7 @@ with tab2:
 # ==========================
 with tab3:
     with st.container():
-        # ✅ White box with shadow and padding
+        # ✅ White box with shadow and padding only
         st.markdown("""
         <style>
             .white-box {
